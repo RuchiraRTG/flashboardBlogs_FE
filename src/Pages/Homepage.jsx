@@ -1,8 +1,16 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 
 export default function Homepage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [activeCategory, setActiveCategory] = useState(null)
+
+  const createSlug = (title) =>
+    title
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .trim()
+      .replace(/\s+/g, '-')
 
   const categories = [
     {
@@ -135,13 +143,14 @@ export default function Homepage() {
                 <ul className="list-none p-0 m-0 divide-y divide-gray-100">
                   {category.links.map((link, index) => (
                     <li key={index}>
-                      <a
-                        href={link.href}
+                      <Link
+                        to={`/blogs/${createSlug(link.name)}`}
+                        state={{ title: link.name, category: category.title }}
                         className="block px-4 py-3 sm:px-5 sm:py-3.5 text-purple-600 hover:bg-purple-50 hover:pl-6 active:bg-purple-50 active:pl-5 transition-all duration-200 text-[0.95rem] sm:text-base break-words min-h-[44px] flex items-center gap-2"
                       >
                         <span className="inline-block h-1.5 w-1.5 rounded-full bg-purple-500" />
                         {link.name}
-                      </a>
+                      </Link>
                     </li>
                   ))}
                 </ul>
