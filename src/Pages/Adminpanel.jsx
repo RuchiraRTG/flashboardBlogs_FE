@@ -193,18 +193,36 @@ const quillFormats = [
 ]
 
 // Create/Edit Blog Component
-function CreateBlog({ categories, topics, onSaveBlog, onNavigateToDashboard, editingBlog, onAddTopic }) {
-  const [formData, setFormData] = useState(
-    editingBlog || {
-      title: '',
-      content: '',
-      category: '',
-      topic: '',
-      newTopic: '',
-      useNewTopic: false,
-      image: null,
-      imagePreview: null
-    }
+function CreateBlog({ categories, topics, onSaveBlog, onNavigateToDashboard, editingBlog, onAddTopic, onAddCategory }) {
+  const initialForm = {
+    title: '',
+    titleSi: '',
+    content: '',
+    contentSi: '',
+    category: '',
+    categorySi: '',
+    useNewCategory: false,
+    newCategory: '',
+    newCategorySi: '',
+    topic: '',
+    topicSi: '',
+    newTopic: '',
+    newTopicSi: '',
+    useNewTopic: false,
+    image: null,
+    imagePreview: null
+  }
+
+  const [formData, setFormData] = useState(() =>
+    editingBlog
+      ? {
+          ...initialForm,
+          ...editingBlog,
+          categorySi: editingBlog.categorySi || editingBlog.category || '',
+          topicSi: editingBlog.topicSi || editingBlog.topic || '',
+          imagePreview: editingBlog.image || null
+        }
+      : initialForm
   )
 
   const handleInputChange = (e) => {
@@ -219,6 +237,33 @@ function CreateBlog({ categories, topics, onSaveBlog, onNavigateToDashboard, edi
     setFormData(prev => ({
       ...prev,
       content: content
+    }))
+  }
+
+  const handleContentChangeSi = (content) => {
+    setFormData(prev => ({
+      ...prev,
+      contentSi: content
+    }))
+  }
+
+  const handleSelectCategory = (e) => {
+    const value = e.target.value
+    const selected = categories.find((c) => c.en === value)
+    setFormData((prev) => ({
+      ...prev,
+      category: value,
+      categorySi: selected?.si || ''
+    }))
+  }
+
+  const handleSelectTopic = (e) => {
+    const value = e.target.value
+    const selected = topics.find((t) => t.en === value)
+    setFormData((prev) => ({
+      ...prev,
+      topic: value,
+      topicSi: selected?.si || ''
     }))
   }
 
@@ -240,28 +285,63 @@ function CreateBlog({ categories, topics, onSaveBlog, onNavigateToDashboard, edi
   const handleSubmit = (e) => {
     e.preventDefault()
     
-    if (!formData.title.trim() || !formData.content.trim() || !formData.category) {
-      alert('Please fill in all required fields')
+    const categoryEn = formData.useNewCategory ? formData.newCategory.trim() : formData.category.trim()
+    const categorySi = formData.useNewCategory
+      ? (formData.newCategorySi.trim() || formData.newCategory.trim())
+      : formData.categorySi.trim()
+    const topicEn = formData.useNewTopic ? formData.newTopic.trim() : formData.topic.trim()
+    const topicSi = formData.useNewTopic
+      ? (formData.newTopicSi.trim() || formData.newTopic.trim())
+      : formData.topicSi.trim()
+
+    if (
+      !formData.title.trim() ||
+      !formData.content.trim() ||
+      !formData.titleSi.trim() ||
+      !formData.contentSi.trim() ||
+      !categoryEn ||
+      !categorySi
+    ) {
+      alert('Please fill in all required fields (both English and Sinhala)')
       return
     }
 
-    const topicToUse = formData.useNewTopic ? formData.newTopic : formData.topic
-    if (!topicToUse) {
-      alert('Please select or create a topic')
+    if (!topicEn || !topicSi) {
+      alert('Please select or create a topic (both English and Sinhala)')
       return
+    }
+
+    if (!formData.image) {
+      alert('Please add a featured image')
+      return
+    }
+
+    // Add new category if creating one
+    if (formData.useNewCategory && formData.newCategory.trim()) {
+      onAddCategory({
+        en: formData.newCategory.trim(),
+        si: formData.newCategorySi.trim() || formData.newCategory.trim()
+      })
     }
 
     // Add new topic if creating one
     if (formData.useNewTopic && formData.newTopic.trim()) {
-      onAddTopic(formData.newTopic.trim())
+      onAddTopic({
+        en: formData.newTopic.trim(),
+        si: formData.newTopicSi.trim() || formData.newTopic.trim()
+      })
     }
 
     onSaveBlog({
       id: editingBlog?.id || Date.now(),
       title: formData.title,
+      titleSi: formData.titleSi,
       content: formData.content,
-      category: formData.category,
-      topic: topicToUse,
+      contentSi: formData.contentSi,
+      category: categoryEn,
+      categorySi,
+      topic: topicEn,
+      topicSi,
       date: editingBlog?.date || new Date().toLocaleDateString(),
       image: formData.image
     })
@@ -292,6 +372,21 @@ function CreateBlog({ categories, topics, onSaveBlog, onNavigateToDashboard, edi
             />
           </div>
 
+          {/* Sinhala Title */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Blog Title (Sinhala) *
+            </label>
+            <input
+              type="text"
+              name="titleSi"
+              value={formData.titleSi}
+              onChange={handleInputChange}
+              placeholder="සිංහල ශීර්ෂය ලියන්න"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+            />
+          </div>
+
           {/* Content - Rich Text Editor */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -309,22 +404,74 @@ function CreateBlog({ categories, topics, onSaveBlog, onNavigateToDashboard, edi
             </div>
           </div>
 
-          {/* Category Selection */}
+          {/* Sinhala Content - Rich Text Editor */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Blog Content (Sinhala) *
+            </label>
+            <div className="border border-gray-300 rounded-lg overflow-hidden">
+              <ReactQuill
+                theme="snow"
+                value={formData.contentSi}
+                onChange={handleContentChangeSi}
+                modules={quillModules}
+                formats={quillFormats}
+                placeholder="සිංහල අන්තර්ගතය මෙහි ලියන්න"
+              />
+            </div>
+          </div>
+
+          {/* Category Selection with new category option */}
+          <div className="space-y-3">
+            <label className="block text-sm font-semibold text-gray-700">
               Category *
             </label>
-            <select
-              name="category"
-              value={formData.category}
-              onChange={handleInputChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
-            >
-              <option value="">Select a category</option>
-              {categories.map(cat => (
-                <option key={cat} value={cat}>{cat}</option>
-              ))}
-            </select>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="useNewCategory"
+                name="useNewCategory"
+                checked={formData.useNewCategory}
+                onChange={handleInputChange}
+                className="w-4 h-4"
+              />
+              <label htmlFor="useNewCategory" className="text-sm text-gray-600 cursor-pointer">
+                Create a new category
+              </label>
+            </div>
+
+            {formData.useNewCategory ? (
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  name="newCategory"
+                  value={formData.newCategory}
+                  onChange={handleInputChange}
+                  placeholder="Enter new category name (English)"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+                />
+                <input
+                  type="text"
+                  name="newCategorySi"
+                  value={formData.newCategorySi}
+                  onChange={handleInputChange}
+                  placeholder="ප්‍රවර්ගයේ නම ඇතුළු කරන්න (සිංහල)"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+                />
+              </div>
+            ) : (
+              <select
+                name="category"
+                value={formData.category}
+                onChange={handleSelectCategory}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+              >
+                <option value="">Select a category</option>
+                {categories.map(cat => (
+                  <option key={cat.en} value={cat.en}>{cat.en} - {cat.si}</option>
+                ))}
+              </select>
+            )}
           </div>
 
           {/* Topic Selection */}
@@ -348,24 +495,34 @@ function CreateBlog({ categories, topics, onSaveBlog, onNavigateToDashboard, edi
               </div>
 
               {formData.useNewTopic ? (
-                <input
-                  type="text"
-                  name="newTopic"
-                  value={formData.newTopic}
-                  onChange={handleInputChange}
-                  placeholder="Enter new topic name"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
-                />
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    name="newTopic"
+                    value={formData.newTopic}
+                    onChange={handleInputChange}
+                    placeholder="Enter new topic name (English)"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+                  />
+                  <input
+                    type="text"
+                    name="newTopicSi"
+                    value={formData.newTopicSi}
+                    onChange={handleInputChange}
+                    placeholder="මාතෘකාවේ නම ඇතුළු කරන්න (සිංහල)"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+                  />
+                </div>
               ) : (
                 <select
                   name="topic"
                   value={formData.topic}
-                  onChange={handleInputChange}
+                  onChange={handleSelectTopic}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
                 >
                   <option value="">Select a topic</option>
                   {topics.map(topic => (
-                    <option key={topic} value={topic}>{topic}</option>
+                    <option key={topic.en} value={topic.en}>{topic.en} - {topic.si}</option>
                   ))}
                 </select>
               )}
@@ -375,7 +532,7 @@ function CreateBlog({ categories, topics, onSaveBlog, onNavigateToDashboard, edi
           {/* Image Upload */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Featured Image (Optional)
+              Featured Image *
             </label>
             <input
               type="file"
@@ -445,18 +602,18 @@ export default function Adminpanel() {
     }
   ])
   const [categories, setCategories] = useState([
-    'Getting Started',
-    'Product Updates',
-    'Authoring Tools',
-    'Engagement',
-    'Integrations',
-    'Success Stories'
+    { en: 'Getting Started', si: 'ඇරඹේ ගමන් ගිය' },
+    { en: 'Product Updates', si: 'නිෂ්පාදන යාවත්කාලයන්' },
+    { en: 'Authoring Tools', si: 'කතුවැඩි මෙවලම්' },
+    { en: 'Engagement', si: 'සම්බන්ධතා' },
+    { en: 'Integrations', si: 'ඒකීකරණ' },
+    { en: 'Success Stories', si: 'සාර්ථක කතා' }
   ])
   const [topics, setTopics] = useState([
-    'Basics',
-    'Advanced',
-    'Tips & Tricks',
-    'Tutorials'
+    { en: 'Basics', si: 'මූලික කරුණු' },
+    { en: 'Advanced', si: 'උසස්' },
+    { en: 'Tips & Tricks', si: 'ඉඟි සහ උපකරණ' },
+    { en: 'Tutorials', si: 'නිබන්ධන' }
   ])
   const [editingBlog, setEditingBlog] = useState(null)
 
@@ -489,8 +646,14 @@ export default function Adminpanel() {
   }
 
   const handleAddTopic = (newTopic) => {
-    if (!topics.includes(newTopic)) {
+    if (!topics.find(t => t.en === newTopic.en)) {
       setTopics([...topics, newTopic])
+    }
+  }
+
+  const handleAddCategory = (newCategory) => {
+    if (!categories.find(c => c.en === newCategory.en)) {
+      setCategories([...categories, newCategory])
     }
   }
 
@@ -577,6 +740,7 @@ export default function Adminpanel() {
             onNavigateToDashboard={() => setCurrentView('dashboard')}
             editingBlog={editingBlog}
             onAddTopic={handleAddTopic}
+            onAddCategory={handleAddCategory}
           />
         )}
       </main>
