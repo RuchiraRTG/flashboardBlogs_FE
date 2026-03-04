@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-family: 'Poppins', system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
 
@@ -42,4 +42,108 @@ button:focus-visible {
   button {
     background-color: #f9f9f9;
   }
+}
+
+/* Rich Text Editor Styling */
+.ql-container {
+  font-size: 1rem;
+  font-family: inherit;
+}
+
+.ql-editor {
+  min-height: 400px;
+  padding: 15px;
+  background: white;
+  font-size: 1rem;
+}
+
+.ql-editor.ql-blank::before {
+  color: #9CA3AF;
+  font-style: italic;
+}
+
+.ql-toolbar {
+  border-top: 1px solid #E5E7EB;
+  border-left: 1px solid #E5E7EB;
+  border-right: 1px solid #E5E7EB;
+  background-color: #F9FAFB;
+}
+
+.ql-toolbar.ql-snow .ql-picker-label {
+  color: #374151;
+}
+
+.ql-toolbar.ql-snow button:hover,
+.ql-toolbar.ql-snow button:focus,
+.ql-toolbar.ql-snow button.ql-active,
+.ql-toolbar.ql-snow .ql-picker-label:hover,
+.ql-toolbar.ql-snow .ql-picker-item:hover,
+.ql-toolbar.ql-snow .ql-picker-item.ql-selected {
+  color: #9333EA;
+}
+
+.ql-toolbar.ql-snow .ql-stroke {
+  stroke: #6B7280;
+}
+
+.ql-toolbar.ql-snow .ql-stroke.ql-active,
+.ql-toolbar.ql-snow .ql-stroke.ql-active::before,
+.ql-toolbar.ql-snow .ql-stroke.ql-active::after {
+  stroke: #9333EA;
+}
+
+.ql-toolbar.ql-snow .ql-fill,
+.ql-toolbar.ql-snow .ql-stroke.ql-fill {
+  fill: #6B7280;
+}
+
+.ql-toolbar.ql-snow .ql-fill.ql-active,
+.ql-toolbar.ql-snow .ql-fill.ql-active::before,
+.ql-toolbar.ql-snow .ql-fill.ql-active::after,
+.ql-toolbar.ql-snow .ql-stroke.ql-fill.ql-active {
+  fill: #9333EA;
+}
+
+/* Blog content styling */
+.prose img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+  margin: 1rem 0;
+}
+
+.prose h1,
+.prose h2,
+.prose h3 {
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+  font-weight: 600;
+}
+
+.prose blockquote {
+  border-left: 0.25rem solid #9333EA;
+  padding-left: 1rem;
+  margin: 1rem 0;
+  color: #6B7280;
+  font-style: italic;
+}
+
+.prose pre {
+  background-color: #1F2937;
+  color: #F3F4F6;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  overflow-x: auto;
+}
+
+.prose code {
+  background-color: #F3F4F6;
+  padding: 0.2rem 0.4rem;
+  border-radius: 0.25rem;
+  font-size: 0.9em;
+}
+
+.prose pre code {
+  background-color: transparent;
+  padding: 0;
 }
