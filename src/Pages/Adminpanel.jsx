@@ -1,7 +1,67 @@
-import { useState } from 'react'
-import { Routes, Route, useNavigate } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import ReactQuill from 'react-quill-new'
 import 'react-quill-new/dist/quill.snow.css'
+import { useAdminAuth } from '../context/AdminAuthContext'
+import {
+  createBlog,
+  createCategory,
+  createTopic,
+  deleteBlog,
+  getBlogs,
+  getCategories,
+  getTopics,
+  uploadAdminImage,
+  updateBlog
+} from '../lib/adminApi'
+import { getEntityId } from '../lib/apiClient'
+
+function normalizeBlog(blog) {
+  if (!blog) {
+    return null
+  }
+
+  return {
+    ...blog,
+    id: getEntityId(blog),
+    title: blog.title || blog.en?.title || '',
+    titleSi: blog.titleSi || blog.si?.title || '',
+    content: blog.content || blog.en?.body || '',
+    contentSi: blog.contentSi || blog.si?.body || '',
+    category: blog.category || blog.en?.category || '',
+    categorySi: blog.categorySi || blog.si?.category || '',
+    topic: blog.topic || blog.en?.topic || '',
+    topicSi: blog.topicSi || blog.si?.topic || '',
+    date: blog.date || blog.createdAt || '',
+    image: blog.image || blog.en?.image || null
+  }
+}
+
+function normalizeCategory(category) {
+  if (!category) {
+    return null
+  }
+
+  return {
+    ...category,
+    id: getEntityId(category),
+    en: category.en || category.name || category.title || category.nameEn || '',
+    si: category.si || category.nameSi || ''
+  }
+}
+
+function normalizeTopic(topic) {
+  if (!topic) {
+    return null
+  }
+
+  return {
+    ...topic,
+    id: getEntityId(topic),
+    en: topic.en || topic.name || topic.title || topic.nameEn || '',
+    si: topic.si || topic.nameSi || ''
+  }
+}
 
 // Blog View Component
 function BlogView({ blog, onBack }) {
@@ -172,17 +232,14 @@ function Dashboard({ blogs, categories, onDeleteBlog, onEditBlog, onNavigateToCr
   )
 }
 
-// Rich Text Editor Modules
-const quillModules = {
-  toolbar: [
-    ['bold', 'italic', 'underline', 'strike'],
-    ['blockquote', 'code-block'],
-    [{ 'header': 1 }, { 'header': 2 }, { 'header': 3 }],
-    [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-    ['link', 'image'],
-    ['clean']
-  ]
-}
+const quillToolbar = [
+  ['bold', 'italic', 'underline', 'strike'],
+  ['blockquote', 'code-block'],
+  [{ 'header': 1 }, { 'header': 2 }, { 'header': 3 }],
+  [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+  ['link', 'image'],
+  ['clean']
+]
 
 const quillFormats = [
   'bold', 'italic', 'underline', 'strike',
@@ -193,7 +250,7 @@ const quillFormats = [
 ]
 
 // Create/Edit Blog Component
-function CreateBlog({ categories, topics, onSaveBlog, onNavigateToDashboard, editingBlog, onAddTopic, onAddCategory }) {
+function CreateBlog({ categories, topics, onSaveBlog, onNavigateToDashboard, editingBlog, onAddTopic, onAddCategory, token }) {
   const initialForm = {
     title: '',
     titleSi: '',
@@ -208,9 +265,7 @@ function CreateBlog({ categories, topics, onSaveBlog, onNavigateToDashboard, edi
     topicSi: '',
     newTopic: '',
     newTopicSi: '',
-    useNewTopic: false,
-    image: null,
-    imagePreview: null
+    useNewTopic: false
   }
 
   const [formData, setFormData] = useState(() =>
@@ -219,11 +274,76 @@ function CreateBlog({ categories, topics, onSaveBlog, onNavigateToDashboard, edi
           ...initialForm,
           ...editingBlog,
           categorySi: editingBlog.categorySi || editingBlog.category || '',
-          topicSi: editingBlog.topicSi || editingBlog.topic || '',
-          imagePreview: editingBlog.image || null
+          topicSi: editingBlog.topicSi || editingBlog.topic || ''
         }
       : initialForm
   )
+  const [uploadingEditor, setUploadingEditor] = useState('')
+  const englishEditorRef = useRef(null)
+  const sinhalaEditorRef = useRef(null)
+
+  const insertUploadedImage = async (file, editorRef, editorLabel) => {
+    if (!file) {
+      return
+    }
+
+    if (!file.type.startsWith('image/')) {
+      alert('Please select a valid image file.')
+      return
+    }
+
+    setUploadingEditor(editorLabel)
+
+    try {
+      const uploadedImage = await uploadAdminImage(file, token)
+      const quill = editorRef.current?.getEditor()
+
+      if (!quill) {
+        throw new Error('Editor is not ready. Please try again.')
+      }
+
+      const selection = quill.getSelection(true)
+      const index = selection ? selection.index : quill.getLength()
+
+      quill.insertEmbed(index, 'image', uploadedImage.url, 'user')
+      quill.setSelection(index + 1)
+    } catch (error) {
+      alert(error.message || 'Failed to upload image')
+    } finally {
+      setUploadingEditor('')
+    }
+  }
+
+  const openImagePicker = (editorRef, editorLabel) => {
+    const input = document.createElement('input')
+    input.setAttribute('type', 'file')
+    input.setAttribute('accept', 'image/*')
+
+    input.onchange = async () => {
+      const selectedFile = input.files?.[0]
+      await insertUploadedImage(selectedFile, editorRef, editorLabel)
+    }
+
+    input.click()
+  }
+
+  const quillModulesEn = {
+    toolbar: {
+      container: quillToolbar,
+      handlers: {
+        image: () => openImagePicker(englishEditorRef, 'English')
+      }
+    }
+  }
+
+  const quillModulesSi = {
+    toolbar: {
+      container: quillToolbar,
+      handlers: {
+        image: () => openImagePicker(sinhalaEditorRef, 'Sinhala')
+      }
+    }
+  }
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target
@@ -267,22 +387,7 @@ function CreateBlog({ categories, topics, onSaveBlog, onNavigateToDashboard, edi
     }))
   }
 
-  const handleImageChange = (e) => {
-    const file = e.target.files[0]
-    if (file) {
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        setFormData(prev => ({
-          ...prev,
-          image: reader.result,
-          imagePreview: reader.result
-        }))
-      }
-      reader.readAsDataURL(file)
-    }
-  }
-
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     
     const categoryEn = formData.useNewCategory ? formData.newCategory.trim() : formData.category.trim()
@@ -311,11 +416,6 @@ function CreateBlog({ categories, topics, onSaveBlog, onNavigateToDashboard, edi
       return
     }
 
-    if (!formData.image) {
-      alert('Please add a featured image')
-      return
-    }
-
     // Add new category if creating one
     if (formData.useNewCategory && formData.newCategory.trim()) {
       onAddCategory({
@@ -332,7 +432,7 @@ function CreateBlog({ categories, topics, onSaveBlog, onNavigateToDashboard, edi
       })
     }
 
-    onSaveBlog({
+    const didSave = await onSaveBlog({
       id: editingBlog?.id || Date.now(),
       title: formData.title,
       titleSi: formData.titleSi,
@@ -342,11 +442,12 @@ function CreateBlog({ categories, topics, onSaveBlog, onNavigateToDashboard, edi
       categorySi,
       topic: topicEn,
       topicSi,
-      date: editingBlog?.date || new Date().toLocaleDateString(),
-      image: formData.image
+      date: editingBlog?.date || new Date().toLocaleDateString()
     })
 
-    onNavigateToDashboard()
+    if (didSave) {
+      onNavigateToDashboard()
+    }
   }
 
   return (
@@ -394,14 +495,18 @@ function CreateBlog({ categories, topics, onSaveBlog, onNavigateToDashboard, edi
             </label>
             <div className="border border-gray-300 rounded-lg overflow-hidden">
               <ReactQuill
+                ref={englishEditorRef}
                 theme="snow"
                 value={formData.content}
                 onChange={handleContentChange}
-                modules={quillModules}
+                modules={quillModulesEn}
                 formats={quillFormats}
                 placeholder="Write your blog content here. Use formatting tools to add subtopics, images, lists, etc."
               />
             </div>
+            {uploadingEditor === 'English' ? (
+              <p className="text-xs text-slate-500 mt-2">Uploading image to S3...</p>
+            ) : null}
           </div>
 
           {/* Sinhala Content - Rich Text Editor */}
@@ -411,14 +516,18 @@ function CreateBlog({ categories, topics, onSaveBlog, onNavigateToDashboard, edi
             </label>
             <div className="border border-gray-300 rounded-lg overflow-hidden">
               <ReactQuill
+                ref={sinhalaEditorRef}
                 theme="snow"
                 value={formData.contentSi}
                 onChange={handleContentChangeSi}
-                modules={quillModules}
+                modules={quillModulesSi}
                 formats={quillFormats}
                 placeholder="සිංහල අන්තර්ගතය මෙහි ලියන්න"
               />
             </div>
+            {uploadingEditor === 'Sinhala' ? (
+              <p className="text-xs text-slate-500 mt-2">Uploading image to S3...</p>
+            ) : null}
           </div>
 
           {/* Category Selection with new category option */}
@@ -529,41 +638,6 @@ function CreateBlog({ categories, topics, onSaveBlog, onNavigateToDashboard, edi
             </div>
           </div>
 
-          {/* Image Upload */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Featured Image *
-            </label>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleImageChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
-            />
-            {formData.imagePreview && (
-              <div className="mt-4 rounded-lg overflow-hidden border border-gray-200">
-                <img
-                  src={formData.imagePreview}
-                  alt="Preview"
-                  className="w-full h-48 object-cover"
-                />
-                <button
-                  type="button"
-                  onClick={() =>
-                    setFormData(prev => ({
-                      ...prev,
-                      image: null,
-                      imagePreview: null
-                    }))
-                  }
-                  className="w-full mt-2 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
-                >
-                  Remove Image
-                </button>
-              </div>
-            )}
-          </div>
-
           {/* Form Actions */}
           <div className="flex gap-4 justify-end pt-6 border-t border-gray-200">
             <button
@@ -588,38 +662,66 @@ function CreateBlog({ categories, topics, onSaveBlog, onNavigateToDashboard, edi
 
 // Main Admin Panel Component
 export default function Adminpanel() {
+  const navigate = useNavigate()
+  const { signOut, token } = useAdminAuth()
   const [currentView, setCurrentView] = useState('dashboard')
   const [viewingBlog, setViewingBlog] = useState(null)
-  const [blogs, setBlogs] = useState([
-    {
-      id: 1,
-      title: 'Getting Started with FlashBoard',
-      content: 'Learn the basics of FlashBoard in this comprehensive guide...',
-      category: 'Getting Started',
-      topic: 'Basics',
-      date: '2024-01-15',
-      image: null
-    }
-  ])
-  const [categories, setCategories] = useState([
-    { en: 'Getting Started', si: 'ඇරඹේ ගමන් ගිය' },
-    { en: 'Product Updates', si: 'නිෂ්පාදන යාවත්කාලයන්' },
-    { en: 'Authoring Tools', si: 'කතුවැඩි මෙවලම්' },
-    { en: 'Engagement', si: 'සම්බන්ධතා' },
-    { en: 'Integrations', si: 'ඒකීකරණ' },
-    { en: 'Success Stories', si: 'සාර්ථක කතා' }
-  ])
-  const [topics, setTopics] = useState([
-    { en: 'Basics', si: 'මූලික කරුණු' },
-    { en: 'Advanced', si: 'උසස්' },
-    { en: 'Tips & Tricks', si: 'ඉඟි සහ උපකරණ' },
-    { en: 'Tutorials', si: 'නිබන්ධන' }
-  ])
+  const [blogs, setBlogs] = useState([])
+  const [categories, setCategories] = useState([])
+  const [topics, setTopics] = useState([])
   const [editingBlog, setEditingBlog] = useState(null)
+  const [isLoadingData, setIsLoadingData] = useState(true)
+  const [loadError, setLoadError] = useState('')
 
-  const handleDeleteBlog = (id) => {
+  useEffect(() => {
+    let isMounted = true
+
+    const loadAdminData = async () => {
+      setIsLoadingData(true)
+      setLoadError('')
+
+      try {
+        const [blogsData, categoriesData, topicsData] = await Promise.all([
+          getBlogs(),
+          getCategories(),
+          getTopics()
+        ])
+
+        if (!isMounted) {
+          return
+        }
+
+        setBlogs(blogsData.map(normalizeBlog).filter(Boolean))
+        setCategories(categoriesData.map(normalizeCategory).filter(Boolean))
+        setTopics(topicsData.map(normalizeTopic).filter(Boolean))
+      } catch (error) {
+        if (!isMounted) {
+          return
+        }
+
+        setLoadError(error.message || 'Failed to load admin data')
+      } finally {
+        if (isMounted) {
+          setIsLoadingData(false)
+        }
+      }
+    }
+
+    loadAdminData()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  const handleDeleteBlog = async (id) => {
     if (confirm('Are you sure you want to delete this blog?')) {
-      setBlogs(blogs.filter(blog => blog.id !== id))
+      try {
+        await deleteBlog(id, token)
+        setBlogs((prevBlogs) => prevBlogs.filter((blog) => getEntityId(blog) !== id))
+      } catch (error) {
+        alert(error.message || 'Failed to delete blog')
+      }
     }
   }
 
@@ -632,29 +734,71 @@ export default function Adminpanel() {
     setViewingBlog(blog)
   }
 
-  const handleSaveBlog = (blogData) => {
-    if (editingBlog) {
-      // Update existing blog
-      setBlogs(blogs.map(blog =>
-        blog.id === blogData.id ? blogData : blog
-      ))
-      setEditingBlog(null)
-    } else {
-      // Add new blog
-      setBlogs([...blogs, blogData])
+  const handleSaveBlog = async (blogData) => {
+    const payload = {
+      title: blogData.title,
+      titleSi: blogData.titleSi,
+      content: blogData.content,
+      contentSi: blogData.contentSi,
+      category: blogData.category,
+      categorySi: blogData.categorySi,
+      topic: blogData.topic,
+      topicSi: blogData.topicSi,
+      date: blogData.date,
+      image: blogData.image || null
+    }
+
+    try {
+      if (editingBlog) {
+        const blogId = getEntityId(editingBlog)
+        const updatedBlog = await updateBlog(blogId, payload, token)
+
+        setBlogs((prevBlogs) =>
+          prevBlogs.map((blog) => (getEntityId(blog) === blogId ? normalizeBlog(updatedBlog || { ...blog, ...payload }) : blog))
+        )
+
+        setEditingBlog(null)
+      } else {
+        const createdBlog = await createBlog(payload, token)
+        setBlogs((prevBlogs) => [...prevBlogs, normalizeBlog(createdBlog || payload)])
+      }
+
+      return true
+    } catch (error) {
+      alert(error.message || 'Failed to save blog')
+      return false
     }
   }
 
-  const handleAddTopic = (newTopic) => {
-    if (!topics.find(t => t.en === newTopic.en)) {
-      setTopics([...topics, newTopic])
+  const handleAddTopic = async (newTopic) => {
+    if (topics.find((t) => t.en === newTopic.en)) {
+      return
+    }
+
+    try {
+      const createdTopic = await createTopic(newTopic, token)
+      setTopics((prevTopics) => [...prevTopics, normalizeTopic(createdTopic || newTopic)])
+    } catch (error) {
+      alert(error.message || 'Failed to create topic')
     }
   }
 
-  const handleAddCategory = (newCategory) => {
-    if (!categories.find(c => c.en === newCategory.en)) {
-      setCategories([...categories, newCategory])
+  const handleAddCategory = async (newCategory) => {
+    if (categories.find((c) => c.en === newCategory.en)) {
+      return
     }
+
+    try {
+      const createdCategory = await createCategory(newCategory, token)
+      setCategories((prevCategories) => [...prevCategories, normalizeCategory(createdCategory || newCategory)])
+    } catch (error) {
+      alert(error.message || 'Failed to create category')
+    }
+  }
+
+  const handleSignOut = () => {
+    signOut()
+    navigate('/admin/sign-in', { replace: true })
   }
 
   // If viewing a blog, show the blog view instead
@@ -670,6 +814,31 @@ export default function Adminpanel() {
     )
   }
 
+  if (isLoadingData) {
+    return (
+      <div className="min-h-screen bg-slate-100 flex items-center justify-center text-slate-700">
+        Loading admin data...
+      </div>
+    )
+  }
+
+  if (loadError) {
+    return (
+      <div className="min-h-screen bg-slate-100 flex items-center justify-center px-4">
+        <div className="max-w-lg w-full rounded-xl border border-red-200 bg-white p-6 text-center shadow-sm">
+          <p className="text-red-600 font-semibold">Failed to load admin data</p>
+          <p className="text-slate-600 text-sm mt-2">{loadError}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-4 px-4 py-2 rounded-lg bg-slate-900 text-white font-semibold"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       {/* Admin Header */}
@@ -680,12 +849,20 @@ export default function Adminpanel() {
               <h1 className="text-3xl font-black tracking-wide">Admin Panel</h1>
               <p className="text-sm opacity-90 mt-1">Manage your blogs and categories</p>
             </div>
-            <a
-              href="/"
-              className="px-4 py-2 bg-white text-purple-600 font-semibold rounded-lg hover:bg-gray-100 transition-colors"
-            >
-              ← Back to Site
-            </a>
+            <div className="flex items-center gap-2">
+              <a
+                href="/"
+                className="px-4 py-2 bg-white text-purple-600 font-semibold rounded-lg hover:bg-gray-100 transition-colors"
+              >
+                ← Back to Site
+              </a>
+              <button
+                onClick={handleSignOut}
+                className="px-4 py-2 bg-slate-900/15 text-white font-semibold rounded-lg hover:bg-slate-900/30 transition-colors"
+              >
+                Sign Out
+              </button>
+            </div>
           </div>
         </div>
       </header>
@@ -727,7 +904,7 @@ export default function Adminpanel() {
           <Dashboard
             blogs={blogs}
             categories={categories}
-            onDeleteBlog={handleDeleteBlog}
+            onDeleteBlog={(blogId) => handleDeleteBlog(blogId)}
             onEditBlog={handleEditBlog}
             onNavigateToCreate={() => setCurrentView('create')}
             onViewBlog={handleViewBlog}
@@ -741,6 +918,7 @@ export default function Adminpanel() {
             editingBlog={editingBlog}
             onAddTopic={handleAddTopic}
             onAddCategory={handleAddCategory}
+            token={token}
           />
         )}
       </main>

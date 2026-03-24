@@ -1,8 +1,9 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate, useParams, Link } from 'react-router-dom'
 import { useLanguage } from '../context/LanguageContext'
 import { getTranslation } from '../translations/translations'
 import { gradientText, knowledgeSections, knowledgeArticles } from '../data/knowledgeBase'
+import { getPublicArticle, getPublicBlogByIdentifier, getPublicBlogSections, getPublicTopics } from '../lib/publicApi'
 
 const fallbackBody = {
   si: `
@@ -21,7 +22,57 @@ export default function BlogReader() {
   const location = useLocation()
   const { language, switchLanguage } = useLanguage()
   const t = (key) => getTranslation(language, key)
-  const sections = knowledgeSections[language]
+  const [sections, setSections] = useState(knowledgeSections[language])
+  const [backendBlog, setBackendBlog] = useState(null)
+  const [backendArticle, setBackendArticle] = useState(null)
+  const [isLoadingArticle, setIsLoadingArticle] = useState(true)
+
+  useEffect(() => {
+    let isMounted = true
+
+    const loadReaderData = async () => {
+      setIsLoadingArticle(true)
+
+      const [blogSectionsResult, topicsResult, blogResult, articleResult] = await Promise.allSettled([
+        getPublicBlogSections(language),
+        getPublicTopics(language),
+        getPublicBlogByIdentifier(slug, language),
+        getPublicArticle(slug, language)
+      ])
+
+      if (!isMounted) {
+        return
+      }
+
+      if (blogSectionsResult.status === 'fulfilled' && blogSectionsResult.value.length > 0) {
+        setSections(blogSectionsResult.value)
+      } else if (topicsResult.status === 'fulfilled' && topicsResult.value.length > 0) {
+        setSections(topicsResult.value)
+      } else {
+        setSections(knowledgeSections[language])
+      }
+
+      if (blogResult.status === 'fulfilled') {
+        setBackendBlog(blogResult.value)
+      } else {
+        setBackendBlog(null)
+      }
+
+      if (articleResult.status === 'fulfilled') {
+        setBackendArticle(articleResult.value)
+      } else {
+        setBackendArticle(null)
+      }
+
+      setIsLoadingArticle(false)
+    }
+
+    loadReaderData()
+
+    return () => {
+      isMounted = false
+    }
+  }, [slug, language])
 
   const flatNav = useMemo(
     () =>
@@ -32,6 +83,14 @@ export default function BlogReader() {
   )
 
   const article = useMemo(() => {
+    if (backendBlog) {
+      return backendBlog
+    }
+
+    if (backendArticle) {
+      return backendArticle
+    }
+
     if (knowledgeArticles[slug]) {
       return knowledgeArticles[slug][language]
     }
@@ -48,16 +107,20 @@ export default function BlogReader() {
       image: null,
       body: fallbackBody[language]
     }
-  }, [slug, flatNav, location.state, language, t])
+  }, [backendBlog, backendArticle, slug, flatNav, location.state, language, t])
 
   const related = useMemo(
     () => flatNav.filter((item) => item.category === article.category && item.slug !== slug),
     [article.category, slug, flatNav]
   )
 
-  const activeImage =
-    article.image ||
-    'https://images.unsplash.com/photo-1473186578172-c141e6798cf4?auto=format&fit=crop&w=1400&q=80'
+  if (isLoadingArticle) {
+    return (
+      <div className="min-h-screen bg-slate-100 flex items-center justify-center text-slate-700">
+        Loading article...
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-slate-100">
@@ -152,10 +215,12 @@ export default function BlogReader() {
               ) : null}
             </div>
 
-            <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
-              <div className="absolute inset-0 bg-gradient-to-r from-black/10 via-black/5 to-transparent" />
-              <img src={activeImage} alt={article.title} className="w-full h-[320px] object-cover" />
-            </div>
+            {article.image ? (
+              <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                <div className="absolute inset-0 bg-gradient-to-r from-black/10 via-black/5 to-transparent" />
+                <img src={article.image} alt={article.title} className="w-full h-[320px] object-cover" />
+              </div>
+            ) : null}
 
             <section className="prose prose-slate max-w-none text-base leading-relaxed">
               <div

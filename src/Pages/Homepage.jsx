@@ -1,13 +1,57 @@
 import { Link } from 'react-router-dom'
+import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { useLanguage } from '../context/LanguageContext'
 import { getTranslation } from '../translations/translations'
 import { gradientText, knowledgeSections } from '../data/knowledgeBase'
+import { getPublicBlogSections, getPublicTopics } from '../lib/publicApi'
 
 export default function Homepage() {
   const { language, switchLanguage } = useLanguage()
   const t = (key) => getTranslation(language, key)
-  const sections = knowledgeSections[language]
+  const [sections, setSections] = useState(knowledgeSections[language])
+
+  useEffect(() => {
+    let isMounted = true
+
+    const loadTopics = async () => {
+      try {
+        const blogSections = await getPublicBlogSections(language)
+
+        if (!isMounted) {
+          return
+        }
+
+        if (blogSections.length > 0) {
+          setSections(blogSections)
+          return
+        }
+
+        const backendSections = await getPublicTopics(language)
+
+        if (!isMounted) {
+          return
+        }
+
+        if (backendSections.length > 0) {
+          setSections(backendSections)
+          return
+        }
+
+        setSections(knowledgeSections[language])
+      } catch {
+        if (isMounted) {
+          setSections(knowledgeSections[language])
+        }
+      }
+    }
+
+    loadTopics()
+
+    return () => {
+      isMounted = false
+    }
+  }, [language])
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900">
