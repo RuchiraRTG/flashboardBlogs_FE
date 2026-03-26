@@ -49,9 +49,9 @@ export function AdminAuthProvider({ children }) {
     }
   }, [token])
 
-  const signIn = async (username, password) => {
+  const signIn = async (email, password) => {
     try {
-      const session = await signInAdmin({ username, password })
+      const session = await signInAdmin({ email, password })
       localStorage.setItem(ADMIN_AUTH_TOKEN_STORAGE_KEY, session.token)
       setToken(session.token)
       setIsAuthenticated(true)
@@ -60,7 +60,7 @@ export function AdminAuthProvider({ children }) {
     } catch (error) {
       return {
         success: false,
-        message: error.message || 'Invalid username or password'
+        message: error.message || 'Invalid email or password'
       }
     }
   }

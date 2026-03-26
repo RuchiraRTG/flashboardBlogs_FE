@@ -6,15 +6,70 @@ import { getTranslation } from '../translations/translations'
 import { gradientText, knowledgeSections } from '../data/knowledgeBase'
 import { getPublicBlogSections, getPublicTopics } from '../lib/publicApi'
 
+const HOME_SECTIONS_CACHE_KEY_PREFIX = 'flashboard_home_sections_'
+
+function getSectionsCacheKey(language) {
+  return `${HOME_SECTIONS_CACHE_KEY_PREFIX}${language}`
+}
+
+function isValidSection(section) {
+  if (!section || typeof section !== 'object') {
+    return false
+  }
+
+  if (typeof section.title !== 'string' || !Array.isArray(section.items)) {
+    return false
+  }
+
+  return section.items.every((item) => item && typeof item.title === 'string' && typeof item.slug === 'string')
+}
+
+function readCachedSections(language) {
+  try {
+    const raw = localStorage.getItem(getSectionsCacheKey(language))
+
+    if (!raw) {
+      return null
+    }
+
+    const parsed = JSON.parse(raw)
+
+    if (!Array.isArray(parsed)) {
+      return null
+    }
+
+    const cleaned = parsed.filter(isValidSection)
+    return cleaned.length > 0 ? cleaned : null
+  } catch {
+    return null
+  }
+}
+
+function cacheSections(language, sections) {
+  try {
+    localStorage.setItem(getSectionsCacheKey(language), JSON.stringify(sections))
+  } catch {
+    // Ignore storage errors in private browsing/quota limits.
+  }
+}
+
 export default function Homepage() {
   const { language, switchLanguage } = useLanguage()
   const t = (key) => getTranslation(language, key)
-  const [sections, setSections] = useState(knowledgeSections[language])
+  const [sections, setSections] = useState(() => readCachedSections(language) || knowledgeSections[language])
 
   useEffect(() => {
     let isMounted = true
 
     const loadTopics = async () => {
+      const cachedSections = readCachedSections(language)
+
+      if (cachedSections?.length) {
+        setSections(cachedSections)
+      } else {
+        setSections(knowledgeSections[language])
+      }
+
       try {
         const blogSections = await getPublicBlogSections(language)
 
@@ -24,6 +79,7 @@ export default function Homepage() {
 
         if (blogSections.length > 0) {
           setSections(blogSections)
+          cacheSections(language, blogSections)
           return
         }
 
@@ -35,13 +91,23 @@ export default function Homepage() {
 
         if (backendSections.length > 0) {
           setSections(backendSections)
+          cacheSections(language, backendSections)
+          return
+        }
+
+        if (cachedSections?.length) {
+          setSections(cachedSections)
           return
         }
 
         setSections(knowledgeSections[language])
       } catch {
         if (isMounted) {
-          setSections(knowledgeSections[language])
+          if (cachedSections?.length) {
+            setSections(cachedSections)
+          } else {
+            setSections(knowledgeSections[language])
+          }
         }
       }
     }

@@ -33,12 +33,31 @@ export default function BlogReader() {
     const loadReaderData = async () => {
       setIsLoadingArticle(true)
 
-      const [blogSectionsResult, topicsResult, blogResult, articleResult] = await Promise.allSettled([
+      const [blogSectionsResult, topicsResult] = await Promise.allSettled([
         getPublicBlogSections(language),
-        getPublicTopics(language),
-        getPublicBlogByIdentifier(slug, language),
-        getPublicArticle(slug, language)
+        getPublicTopics(language)
       ])
+
+      let blogResult = null
+      let articleResult = null
+
+      try {
+        blogResult = await getPublicBlogByIdentifier(slug, language)
+      } catch (error) {
+        console.error('Failed to load blog', error)
+        blogResult = null
+      }
+
+      if (!blogResult) {
+        try {
+          articleResult = await getPublicArticle(slug, language)
+        } catch (error) {
+          if (error?.status !== 404) {
+            console.error('Failed to load knowledge article', error)
+          }
+          articleResult = null
+        }
+      }
 
       if (!isMounted) {
         return
@@ -52,17 +71,8 @@ export default function BlogReader() {
         setSections(knowledgeSections[language])
       }
 
-      if (blogResult.status === 'fulfilled') {
-        setBackendBlog(blogResult.value)
-      } else {
-        setBackendBlog(null)
-      }
-
-      if (articleResult.status === 'fulfilled') {
-        setBackendArticle(articleResult.value)
-      } else {
-        setBackendArticle(null)
-      }
+      setBackendBlog(blogResult)
+      setBackendArticle(articleResult)
 
       setIsLoadingArticle(false)
     }
@@ -109,6 +119,35 @@ export default function BlogReader() {
     }
   }, [backendBlog, backendArticle, slug, flatNav, location.state, language, t])
 
+  useEffect(() => {
+    const articleContainer = document.querySelector('[data-blog-body="true"]')
+
+    if (!articleContainer) {
+      return
+    }
+
+    const anchors = articleContainer.querySelectorAll('a[href]')
+
+    anchors.forEach((anchor) => {
+      const rawHref = (anchor.getAttribute('href') || '').trim()
+
+      if (!rawHref) {
+        return
+      }
+
+      const isHash = rawHref.startsWith('#')
+      const hasProtocol = /^(https?:|mailto:|tel:)/i.test(rawHref)
+      const isRelative = rawHref.startsWith('/') || rawHref.startsWith('./') || rawHref.startsWith('../')
+
+      if (!isHash && !hasProtocol && !isRelative) {
+        anchor.setAttribute('href', `https://${rawHref}`)
+      }
+
+      anchor.setAttribute('target', '_blank')
+      anchor.setAttribute('rel', 'noopener noreferrer')
+    })
+  }, [article?.body])
+
   const related = useMemo(
     () => flatNav.filter((item) => item.category === article.category && item.slug !== slug),
     [article.category, slug, flatNav]
@@ -126,15 +165,15 @@ export default function BlogReader() {
     <div className="min-h-screen bg-slate-100">
       <header className="bg-slate-900 text-white">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="h-11 w-11 rounded-lg bg-gradient-to-r from-[#b000ff] to-[#ff0f78] flex items-center justify-center text-white font-black">
+          <Link to="/" className="flex items-center gap-3 group" aria-label={t('knowledgeBase')}>
+            <div className="h-11 w-11 rounded-lg bg-gradient-to-r from-[#b000ff] to-[#ff0f78] flex items-center justify-center text-white font-black group-hover:scale-105 transition-transform">
               KB
             </div>
             <div>
               <p className="text-xs uppercase tracking-[0.3em] text-white/60">{t('knowledgeBase')}</p>
-              <h1 className="text-lg sm:text-xl font-semibold">{t('flashboardFacts')}</h1>
+              <h1 className="text-lg sm:text-xl font-semibold group-hover:text-white transition-colors">{t('flashboardFacts')}</h1>
             </div>
-          </div>
+          </Link>
           <div className="w-full sm:w-auto flex items-center justify-between sm:justify-end gap-3">
             <button
               onClick={() => navigate(-1)}
@@ -224,7 +263,8 @@ export default function BlogReader() {
 
             <section className="prose prose-slate max-w-none text-base leading-relaxed">
               <div
-                className="[&_h3]:mt-6 [&_h3]:text-xl [&_h3]:text-slate-900 [&_ul]:list-disc [&_ul]:pl-5 [&_p]:text-slate-700"
+                data-blog-body="true"
+                className="[&_h3]:mt-6 [&_h3]:text-xl [&_h3]:text-slate-900 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:max-w-full [&_p]:text-slate-700 [&_p]:leading-8 [&_p]:mb-4 [&_p]:text-left [&_p]:break-words [&_p]:[overflow-wrap:anywhere] [&_li]:leading-8 [&_li]:break-words [&_li]:[overflow-wrap:anywhere] [&_a]:text-blue-700 [&_a]:underline [&_a]:underline-offset-2 [&_a:hover]:text-blue-900 [&_.ql-align-center]:text-center [&_.ql-align-right]:text-right [&_.ql-align-justify]:text-justify"
                 dangerouslySetInnerHTML={{ __html: article.body }}
               />
             </section>
