@@ -73,23 +73,31 @@ export async function getPublicTopics(language) {
 }
 
 export async function getPublicArticle(slug, language) {
-  const response = await apiRequest(`/articles/${slug}?lang=${language}`, { method: 'GET' })
-  const article = extractEntity(response)
+  try {
+    const response = await apiRequest(`/articles/${slug}?lang=${language}`, { method: 'GET' })
+    const article = extractEntity(response)
 
-  if (!article) {
-    return null
-  }
+    if (!article) {
+      return null
+    }
 
-  const localized = article[language] || article
+    const localized = article[language] || article
 
-  return {
-    id: getEntityId(article),
-    slug: article.slug || slug,
-    title: localized.title || article.title || '',
-    category: localized.category || article.category || '',
-    topic: localized.topic || article.topic || '',
-    image: localized.image || article.image || null,
-    body: localized.body || article.body || ''
+    return {
+      id: getEntityId(article),
+      slug: article.slug || slug,
+      title: localized.title || article.title || '',
+      category: localized.category || article.category || '',
+      topic: localized.topic || article.topic || '',
+      image: localized.image || article.image || null,
+      body: localized.body || article.body || ''
+    }
+  } catch (error) {
+    if (error?.status === 404) {
+      return null
+    }
+
+    throw error
   }
 }
 

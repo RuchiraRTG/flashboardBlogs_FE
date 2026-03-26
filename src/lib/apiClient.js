@@ -1,6 +1,25 @@
-const DEFAULT_API_BASE_URL = 'http://localhost:5001/api'
+const DEFAULT_API_BASE_URL = 'http://localhost:5002'
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || DEFAULT_API_BASE_URL).replace(/\/$/, '')
+const RAW_API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || DEFAULT_API_BASE_URL).replace(/\/$/, '')
+
+function normalizePath(path = '') {
+  if (!path) {
+    return ''
+  }
+
+  return path.startsWith('/') ? path : `/${path}`
+}
+
+function buildApiUrl(path) {
+  const normalizedPath = normalizePath(path)
+
+  // Supports backends mounted at root (/admin/sign-in) and /api (/api/admin/sign-in).
+  if (RAW_API_BASE_URL.endsWith('/api')) {
+    return `${RAW_API_BASE_URL}${normalizedPath}`
+  }
+
+  return `${RAW_API_BASE_URL}/api${normalizedPath}`
+}
 
 function buildHeaders(token, customHeaders = {}) {
   const headers = {
@@ -17,10 +36,34 @@ function buildHeaders(token, customHeaders = {}) {
 export async function apiRequest(path, options = {}) {
   const { token, headers, ...restOptions } = options
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const primaryUrl = buildApiUrl(path)
+  const fallbackUrl = `${RAW_API_BASE_URL}${normalizePath(path)}`
+
+  let response
+
+  try {
+    response = await fetch(primaryUrl, {
+      ...restOptions,
+      headers: buildHeaders(token, headers)
+    })
+  } catch (error) {
+    // If network fetch fails, retry once against root-mounted routes.
+    if (primaryUrl !== fallbackUrl) {
+      response = await fetch(fallbackUrl, {
+        ...restOptions,
+        headers: buildHeaders(token, headers)
+      })
+    } else {
+      throw error
+    }
+  }
+
+  if (response.status === 404 && primaryUrl !== fallbackUrl) {
+    response = await fetch(fallbackUrl, {
     ...restOptions,
     headers: buildHeaders(token, headers)
   })
+  }
 
   const contentType = response.headers.get('content-type') || ''
   const isJson = contentType.includes('application/json')
@@ -76,4 +119,4 @@ export function getEntityId(entity) {
   return entity?._id || entity?.id || entity?.slug
 }
 
-export { API_BASE_URL }
+export { RAW_API_BASE_URL as API_BASE_URL }

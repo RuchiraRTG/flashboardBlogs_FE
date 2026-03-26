@@ -281,6 +281,25 @@ function CreateBlog({ categories, topics, onSaveBlog, onNavigateToDashboard, edi
   const [uploadingEditor, setUploadingEditor] = useState('')
   const englishEditorRef = useRef(null)
   const sinhalaEditorRef = useRef(null)
+    const pendingImagesRef = useRef([])
+
+    const registerPendingImage = (file) => {
+      const tempUrl = URL.createObjectURL(file)
+      pendingImagesRef.current.push({ tempUrl, file })
+      return tempUrl
+    }
+
+    const revokePendingImageUrls = () => {
+      pendingImagesRef.current.forEach(({ tempUrl }) => {
+        URL.revokeObjectURL(tempUrl)
+      })
+    }
+
+    useEffect(() => {
+      return () => {
+        revokePendingImageUrls()
+      }
+    }, [])
 
   const insertUploadedImage = async (file, editorRef, editorLabel) => {
     if (!file) {
@@ -302,10 +321,12 @@ function CreateBlog({ categories, topics, onSaveBlog, onNavigateToDashboard, edi
         throw new Error('Editor is not ready. Please try again.')
       }
 
+        const tempUrl = registerPendingImage(file)
+
       const selection = quill.getSelection(true)
       const index = selection ? selection.index : quill.getLength()
 
-      quill.insertEmbed(index, 'image', uploadedImage.url, 'user')
+        quill.insertEmbed(index, 'image', tempUrl, 'user')
       quill.setSelection(index + 1)
     } catch (error) {
       alert(error.message || 'Failed to upload image')
@@ -313,6 +334,21 @@ function CreateBlog({ categories, topics, onSaveBlog, onNavigateToDashboard, edi
       setUploadingEditor('')
     }
   }
+
+    const uploadPendingImagesInContent = async (content) => {
+      let nextContent = content
+
+      for (const { tempUrl, file } of pendingImagesRef.current) {
+        if (!nextContent.includes(tempUrl)) {
+          continue
+        }
+
+        const uploadedImage = await uploadAdminImage(file, token)
+        nextContent = nextContent.split(tempUrl).join(uploadedImage.url)
+      }
+
+      return nextContent
+    }
 
   const openImagePicker = (editorRef, editorLabel) => {
     const input = document.createElement('input')

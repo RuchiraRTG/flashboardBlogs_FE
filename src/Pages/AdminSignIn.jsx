@@ -8,7 +8,7 @@ export default function AdminSignIn() {
   const location = useLocation()
   const { isAuthenticated, signIn } = useAdminAuth()
 
-  const [username, setUsername] = useState('')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -23,7 +23,7 @@ export default function AdminSignIn() {
     e.preventDefault()
     setIsSubmitting(true)
 
-    const result = await signIn(username, password)
+    const result = await signIn(email.trim(), password)
 
     if (!result.success) {
       setError(result.message)
@@ -62,16 +62,16 @@ export default function AdminSignIn() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="username" className="block text-sm font-semibold text-slate-700 mb-1.5">
-                Username
+              <label htmlFor="email" className="block text-sm font-semibold text-slate-700 mb-1.5">
+                Email
               </label>
               <input
-                id="username"
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                autoComplete="username"
-                placeholder="Enter username"
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                autoComplete="email"
+                placeholder="Enter email"
                 className="w-full px-4 py-2.5 rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-fuchsia-500/50"
               />
             </div>
@@ -106,10 +106,7 @@ export default function AdminSignIn() {
             </button>
           </form>
 
-          <div className="mt-6 text-xs text-slate-500 border-t border-slate-200 pt-4 space-y-2">
-            <p>Use your admin credentials configured in the backend service.</p>
-            <p>API base URL is controlled by VITE_API_BASE_URL in your frontend .env file.</p>
-          </div>
+           
 
           <Link
             to="/"

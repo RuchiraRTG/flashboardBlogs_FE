@@ -1,12 +1,12 @@
 import { apiRequest, extractCollection, extractEntity } from './apiClient'
 
-export async function signInAdmin({ username, password }) {
+export async function signInAdmin({ email, password }) {
   const response = await apiRequest('/admin/sign-in', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({ username, password })
+    body: JSON.stringify({ email, password })
   })
 
   const token =
